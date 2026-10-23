@@ -1,0 +1,9 @@
+node_modules*
+.terraform
+*.js.map
+.env*
+*.tfstate*
+/infrastructure.tf
+/s3policy.json
+/dist/yolov5n_web_model/
+/machine-learning/yolov5n_web_model/
