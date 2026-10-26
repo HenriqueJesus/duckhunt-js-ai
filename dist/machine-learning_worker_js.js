@@ -92,15 +92,17 @@ function addMatch(matches, candidate) {
   });
   if (matches.length > MAX_MATCHES_PER_TEMPLATE) matches.pop();
 }
-function findTemplateMatches(frame, frameWidth, frameHeight, stageScaleX, stageScaleY) {
+function findTemplateMatches(frame, frameWidth, frameHeight) {
+  var scaleX = frameWidth / 800;
+  var scaleY = frameHeight / 600;
   var found = [];
   templates.forEach(function (template) {
-    var displayWidth = Math.round(template.width * stageScaleX);
-    var displayHeight = Math.round(template.height * stageScaleY);
+    var displayWidth = Math.round(template.width * scaleX);
+    var displayHeight = Math.round(template.height * scaleY);
     var samples = template.samples.map(function (sample) {
       return {
-        x: Math.round(sample.x * stageScaleX),
-        y: Math.round(sample.y * stageScaleY),
+        x: Math.round(sample.x * scaleX),
+        y: Math.round(sample.y * scaleY),
         red: sample.red,
         green: sample.green,
         blue: sample.blue,
@@ -245,7 +247,7 @@ self.onmessage = function (_ref) {
     }
     frameContext.drawImage(data.image, 0, 0);
     var imageData = frameContext.getImageData(0, 0, frameCanvas.width, frameCanvas.height);
-    var predictions = findTemplateMatches(imageData.data, frameCanvas.width, frameCanvas.height, data.stageScaleX, data.stageScaleY);
+    var predictions = findTemplateMatches(imageData.data, frameCanvas.width, frameCanvas.height);
     data.image.close();
     postMessage({
       type: 'predictions',

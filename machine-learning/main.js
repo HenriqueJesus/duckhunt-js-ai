@@ -32,10 +32,15 @@ export default async function main(game) {
     let trackedLevel = null;
     let trackedWave = null;
     let previousPredictions = [];
+    const detectionCanvas = document.createElement('canvas');
+    detectionCanvas.width = 800;
+    detectionCanvas.height = 600;
+    const detectionContext = detectionCanvas.getContext('2d');
+    detectionContext.imageSmoothingEnabled = false;
     const SHOT_COOLDOWN_MS = 350;
     const MIN_TRACK_DISTANCE = 3;
     const MAX_TRACK_DISTANCE = 600;
-    const MAX_TRACK_AGE_MS = 700;
+    const MAX_TRACK_AGE_MS = 2000;
     const MAX_TARGET_SPEED = 1.2;
     const MAX_PREDICTION_MS = 500;
 
@@ -71,15 +76,14 @@ export default async function main(game) {
                 container.visible = hudWasVisible;
             }
 
-            createImageBitmap(canvas).then((bitmap) => {
+            detectionContext.drawImage(canvas, 0, 0, detectionCanvas.width, detectionCanvas.height);
+            createImageBitmap(detectionCanvas).then((bitmap) => {
                 worker.postMessage({
                     type: 'predict',
                     image: bitmap,
                     capturedAt,
                     screenWidth: game.app.renderer.screen.width,
                     screenHeight: game.app.renderer.screen.height,
-                    stageScaleX: game.stage.scale.x,
-                    stageScaleY: game.stage.scale.y,
                     requestId
                 }, [bitmap]);
             }).catch((error) => {
@@ -147,17 +151,18 @@ export default async function main(game) {
                     }))
                     .filter(({ candidate, index, age, distance }) =>
                         candidate.label === prediction.label &&
-                        candidate.trackKey === prediction.trackKey &&
                         !matchedPrevious.has(index) &&
-                        age > 50 &&
+                        age > 15 &&
                         age < MAX_TRACK_AGE_MS &&
                         distance < MAX_TRACK_DISTANCE
                     )
                     .sort((first, second) => first.distance - second.distance)[0];
 
-                if (previous && previous.distance > MIN_TRACK_DISTANCE) {
+                if (previous) {
                     matchedPrevious.add(previous.index);
                     movingTargets.push({ prediction, previous: previous.candidate });
+                } else {
+                    movingTargets.push({ prediction, previous: null });
                 }
             });
 
@@ -169,9 +174,11 @@ export default async function main(game) {
             }
 
             const predictedTargets = movingTargets.map(({ prediction, previous }) => {
-                const targetElapsed = prediction.capturedAt - previous.capturedAt;
-                const velocityX = Math.max(-MAX_TARGET_SPEED, Math.min(MAX_TARGET_SPEED, (prediction.x - previous.x) / targetElapsed));
-                const velocityY = Math.max(-MAX_TARGET_SPEED, Math.min(MAX_TARGET_SPEED, (prediction.y - previous.y) / targetElapsed));
+                const targetElapsed = previous ? prediction.capturedAt - previous.capturedAt : 0;
+                const velocityX = targetElapsed > 0 && Math.abs(prediction.x - previous.x) > MIN_TRACK_DISTANCE
+                    ? Math.max(-MAX_TARGET_SPEED, Math.min(MAX_TARGET_SPEED, (prediction.x - previous.x) / targetElapsed)) : 0;
+                const velocityY = targetElapsed > 0 && Math.abs(prediction.y - previous.y) > MIN_TRACK_DISTANCE
+                    ? Math.max(-MAX_TARGET_SPEED, Math.min(MAX_TARGET_SPEED, (prediction.y - previous.y) / targetElapsed)) : 0;
                 const predictionTime = latency * 0.75;
                 const x = prediction.x + velocityX * predictionTime;
                 const y = prediction.y + velocityY * predictionTime;

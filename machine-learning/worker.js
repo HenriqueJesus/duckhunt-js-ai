@@ -96,15 +96,17 @@ function addMatch(matches, candidate, minDistance = 14) {
     if (matches.length > MAX_MATCHES_PER_TEMPLATE) matches.pop();
 }
 
-function findTemplateMatches(frame, frameWidth, frameHeight, stageScaleX, stageScaleY) {
+function findTemplateMatches(frame, frameWidth, frameHeight) {
+    const scaleX = frameWidth / 800;
+    const scaleY = frameHeight / 600;
     const found = [];
 
     templates.forEach((template) => {
-        const displayWidth = Math.round(template.width * stageScaleX);
-        const displayHeight = Math.round(template.height * stageScaleY);
+        const displayWidth = Math.round(template.width * scaleX);
+        const displayHeight = Math.round(template.height * scaleY);
         const samples = template.samples.map((sample) => ({
-            x: Math.round(sample.x * stageScaleX),
-            y: Math.round(sample.y * stageScaleY),
+            x: Math.round(sample.x * scaleX),
+            y: Math.round(sample.y * scaleY),
             red: sample.red,
             green: sample.green,
             blue: sample.blue,
@@ -219,9 +221,7 @@ self.onmessage = ({ data }) => {
         const predictions = findTemplateMatches(
             imageData.data,
             frameCanvas.width,
-            frameCanvas.height,
-            data.stageScaleX,
-            data.stageScaleY
+            frameCanvas.height
         );
         data.image.close();
 

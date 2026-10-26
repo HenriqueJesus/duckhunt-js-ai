@@ -125,7 +125,7 @@ function main(_x) {
 }
 function _main() {
   _main = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee(game) {
-    var container, worker, duckTemplates, detectorReady, gameStarted, inferencePending, requestId, lastShotAt, trackedLevel, trackedWave, previousPredictions, SHOT_COOLDOWN_MS, MIN_TRACK_DISTANCE, MAX_TRACK_DISTANCE, MAX_TRACK_AGE_MS, MAX_TARGET_SPEED, MAX_PREDICTION_MS, startGame, captureFrame;
+    var container, worker, duckTemplates, detectorReady, gameStarted, inferencePending, requestId, lastShotAt, trackedLevel, trackedWave, previousPredictions, detectionCanvas, detectionContext, SHOT_COOLDOWN_MS, MIN_TRACK_DISTANCE, MAX_TRACK_DISTANCE, MAX_TRACK_AGE_MS, MAX_TARGET_SPEED, MAX_PREDICTION_MS, startGame, captureFrame;
     return _regenerator().w(function (_context) {
       while (1) switch (_context.n) {
         case 0:
@@ -146,15 +146,14 @@ function _main() {
                 game.stage.aim.visible = aimWasVisible;
                 container.visible = hudWasVisible;
               }
-              createImageBitmap(canvas).then(function (bitmap) {
+              detectionContext.drawImage(canvas, 0, 0, detectionCanvas.width, detectionCanvas.height);
+              createImageBitmap(detectionCanvas).then(function (bitmap) {
                 worker.postMessage({
                   type: 'predict',
                   image: bitmap,
                   capturedAt: capturedAt,
                   screenWidth: game.app.renderer.screen.width,
                   screenHeight: game.app.renderer.screen.height,
-                  stageScaleX: game.stage.scale.x,
-                  stageScaleY: game.stage.scale.y,
                   requestId: requestId
                 }, [bitmap]);
               })["catch"](function (error) {
@@ -222,10 +221,15 @@ function _main() {
           trackedLevel = null;
           trackedWave = null;
           previousPredictions = [];
+          detectionCanvas = document.createElement('canvas');
+          detectionCanvas.width = 800;
+          detectionCanvas.height = 600;
+          detectionContext = detectionCanvas.getContext('2d');
+          detectionContext.imageSmoothingEnabled = false;
           SHOT_COOLDOWN_MS = 350;
           MIN_TRACK_DISTANCE = 3;
           MAX_TRACK_DISTANCE = 600;
-          MAX_TRACK_AGE_MS = 700;
+          MAX_TRACK_AGE_MS = 2000;
           MAX_TARGET_SPEED = 1.2;
           MAX_PREDICTION_MS = 500;
           worker.onerror = function (error) {
@@ -278,15 +282,20 @@ function _main() {
                     index = _ref7.index,
                     age = _ref7.age,
                     distance = _ref7.distance;
-                  return candidate.label === prediction.label && candidate.trackKey === prediction.trackKey && !matchedPrevious.has(index) && age > 50 && age < MAX_TRACK_AGE_MS && distance < MAX_TRACK_DISTANCE;
+                  return candidate.label === prediction.label && !matchedPrevious.has(index) && age > 15 && age < MAX_TRACK_AGE_MS && distance < MAX_TRACK_DISTANCE;
                 }).sort(function (first, second) {
                   return first.distance - second.distance;
                 })[0];
-                if (previous && previous.distance > MIN_TRACK_DISTANCE) {
+                if (previous) {
                   matchedPrevious.add(previous.index);
                   movingTargets.push({
                     prediction: prediction,
                     previous: previous.candidate
+                  });
+                } else {
+                  movingTargets.push({
+                    prediction: prediction,
+                    previous: null
                   });
                 }
               });
@@ -298,9 +307,9 @@ function _main() {
               var predictedTargets = movingTargets.map(function (_ref8) {
                 var prediction = _ref8.prediction,
                   previous = _ref8.previous;
-                var targetElapsed = prediction.capturedAt - previous.capturedAt;
-                var velocityX = Math.max(-MAX_TARGET_SPEED, Math.min(MAX_TARGET_SPEED, (prediction.x - previous.x) / targetElapsed));
-                var velocityY = Math.max(-MAX_TARGET_SPEED, Math.min(MAX_TARGET_SPEED, (prediction.y - previous.y) / targetElapsed));
+                var targetElapsed = previous ? prediction.capturedAt - previous.capturedAt : 0;
+                var velocityX = targetElapsed > 0 && Math.abs(prediction.x - previous.x) > MIN_TRACK_DISTANCE ? Math.max(-MAX_TARGET_SPEED, Math.min(MAX_TARGET_SPEED, (prediction.x - previous.x) / targetElapsed)) : 0;
+                var velocityY = targetElapsed > 0 && Math.abs(prediction.y - previous.y) > MIN_TRACK_DISTANCE ? Math.max(-MAX_TARGET_SPEED, Math.min(MAX_TARGET_SPEED, (prediction.y - previous.y) / targetElapsed)) : 0;
                 var predictionTime = latency * 0.75;
                 var x = prediction.x + velocityX * predictionTime;
                 var y = prediction.y + velocityY * predictionTime;
